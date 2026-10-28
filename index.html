@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Sports Ticker</title>
 <link rel="manifest" href="manifest.json">
 <meta name="theme-color" content="#0b0e14">
@@ -140,6 +140,36 @@
   .srow{display:flex;gap:18px;align-items:center;margin:8px 0 18px;flex-wrap:wrap}
   .srow select,.srow button{background:var(--panel2);color:var(--text);border:1px solid var(--line);border-radius:9px;padding:8px 12px;font-size:15px}
   .done{background:var(--accent)!important;border-color:var(--accent)!important;cursor:pointer;font-weight:700}
+
+  /* ---------- phone layout ---------- */
+  #tabs{display:none}
+  body.m #app{grid-template-rows:auto 1fr auto;height:100vh;height:100dvh}
+  body.m header{padding:10px 14px;padding-top:max(10px,env(safe-area-inset-top));gap:10px}
+  body.m #viewTitle{font-size:20px}
+  body.m #viewSub,body.m #dots,body.m #prevBtn,body.m #nextBtn,body.m #fsBtn,body.m footer{display:none}
+  body.m #clock{font-size:17px;min-width:0}
+  body.m .hbtn{width:38px;height:38px;font-size:18px}
+  body.m main{padding:0}
+  body.m .view{inset:0;overflow-y:auto;-webkit-overflow-scrolling:touch;overscroll-behavior:contain;padding:12px 12px 24px;transition:none}
+  body.m .grid,body.m .stand,body.m .teams{grid-template-columns:1fr!important;grid-auto-rows:auto!important;height:auto;gap:10px}
+  @media (min-width:600px){body.m .grid,body.m .stand,body.m .teams{grid-template-columns:1fr 1fr!important}}
+  body.m .card{padding:12px 14px}
+  body.m .tcard{padding:16px;gap:12px}
+  body.m .thead img{width:52px;height:52px}
+  body.m .thead .nm{font-size:22px}
+  body.m .thead .rc{font-size:15px}
+  body.m .line{font-size:17px;padding-top:9px}
+  body.m .tbl{padding:10px 12px}
+  body.m .stand.roomy td{font-size:16px;padding:5px}
+  body.m .stand.roomy td.tm img{width:22px;height:22px}
+  body.m .hm{display:none}
+  body.m #settings{padding:16px;padding-top:max(16px,env(safe-area-inset-top))}
+  body.m #tabs{display:flex;gap:6px;overflow-x:auto;padding:8px 10px;padding-bottom:max(8px,env(safe-area-inset-bottom));
+    background:#0e121b;border-top:1px solid var(--line);scrollbar-width:none}
+  body.m #tabs::-webkit-scrollbar{display:none}
+  #tabs button{flex:none;background:var(--panel2);border:1px solid var(--line);color:var(--dim);border-radius:999px;
+    padding:9px 14px;font-size:15px;font-weight:600;font-family:inherit}
+  #tabs button.on{background:var(--accent);border-color:var(--accent);color:#fff}
 </style>
 </head>
 <body>
@@ -159,6 +189,7 @@
   </header>
   <main id="main"><div class="view on"><div class="empty">Loading scores…</div></div></main>
   <footer><div id="tick"></div><div id="status"></div></footer>
+  <nav id="tabs"></nav>
 </div>
 
 <div id="settings">
@@ -197,6 +228,13 @@
   }
   function save(){ try { localStorage.setItem('sportsTicker', JSON.stringify(cfg)); } catch(e){} }
   const isFav = (lg, abbr) => cfg.favs.includes(lg+':'+abbr);
+
+  // ---------- phone vs tablet ----------
+  const mq = window.matchMedia('(max-width: 760px), (max-height: 500px) and (max-width: 1000px)');
+  let M = mq.matches;
+  document.body.classList.toggle('m', M);
+  const onMq = () => { M = mq.matches; document.body.classList.toggle('m', M); afterData(true); restartTimer(); };
+  mq.addEventListener ? mq.addEventListener('change', onMq) : mq.addListener(onMq);
 
   // ---------- data ----------
   const data = {score:{}, stand:{}, sched:{}};
@@ -316,13 +354,13 @@
     let sub = sb.week?.text || sb.leagues?.[0]?.season?.type?.name || '';
     if (sb.week?.number && lg==='nfl') sub = `Week ${sb.week.number}`;
     sub = [sub, live ? `${live} live` : `${games.length} game${games.length>1?'s':''}`].filter(Boolean).join(' · ');
-    const shown = games.slice(0, 16);
+    const shown = M ? games : games.slice(0, 16);
     const n = shown.length;
     const cols = n <= 1 ? 1 : n <= 2 ? 1 : n <= 4 ? 2 : n <= 6 ? 3 : 4;
-    const big = n <= 2;
+    const big = !M && n <= 2;
     const more = games.length > shown.length ? `<div class="empty" style="height:auto;font-size:15px;grid-column:1/-1">+${games.length-shown.length} more</div>` : '';
-    return {title:`${LEAGUES[lg].icon} ${LEAGUES[lg].name} Scores`, sub,
-      html:`<div class="grid ${big?'big':n<=6?'mid':''}" style="grid-template-columns:repeat(${cols},minmax(0,1fr))">${shown.map(cardHtml).join('')}${more}</div>`};
+    return {title:`${LEAGUES[lg].icon} ${LEAGUES[lg].name} Scores`, tab:`${LEAGUES[lg].icon} ${LEAGUES[lg].name}`, sub,
+      html:`<div class="grid ${big?'big':(!M && n<=6)?'mid':''}" style="grid-template-columns:repeat(${cols},minmax(0,1fr))">${shown.map(cardHtml).join('')}${more}</div>`};
   }
 
   function standView(lg){
@@ -339,13 +377,13 @@
         return {name:c.name, entries};
       });
       const tbl = c => `<div class="tbl"><h3>${esc(c.name)}</h3><table>
-        <tr><th></th><th>Team</th><th>W</th><th>L</th><th>PCT</th><th>GB</th><th>L10</th><th>STRK</th></tr>
+        <tr><th></th><th>Team</th><th>W</th><th>L</th><th>PCT</th><th>GB</th><th class="hm">L10</th><th>STRK</th></tr>
         ${c.entries.map((e,i) => `<tr class="${isFav(lg,e.team.abbreviation)?'fav':''} ${lg==='nba'&&(i===6||i===10)?'cut':''}">
           <td class="sd">${i+1}</td><td class="tm">${img(logoUrl(lg,e.team.abbreviation,e.team))}${esc(e.team.abbreviation)}</td>
           <td>${sv(e,'wins')}</td><td>${sv(e,'losses')}</td><td>${sv(e,'winPercent')}</td><td>${sv(e,'gamesBehind')}</td>
-          <td>${esc(stat(e,'Last Ten Games')?.displayValue || sv(e,'lasttengames'))}</td><td>${sv(e,'streak')}</td></tr>`).join('')}
+          <td class="hm">${esc(stat(e,'Last Ten Games')?.displayValue || sv(e,'lasttengames'))}</td><td>${sv(e,'streak')}</td></tr>`).join('')}
         </table></div>`;
-      return {title:`${LEAGUES[lg].icon} ${LEAGUES[lg].name} Standings`, sub: lg==='nba' ? 'Top 6 = playoffs · 7–10 = play-in' : 'By conference',
+      return {title:`${LEAGUES[lg].icon} ${LEAGUES[lg].name} Standings`, tab:`${LEAGUES[lg].name} Table`, sub: lg==='nba' ? 'Top 6 = playoffs · 7–10 = play-in' : 'By conference',
         html:`<div class="stand small" style="grid-template-columns:1fr 1fr">${confs.map(tbl).join('')}</div>`};
     }
     // NFL & MLB: divisions
@@ -364,7 +402,7 @@
         <td>${isNfl ? sv(e,'winPercent') : isNhl ? `<b>${sv(e,'points')}</b>` : sv(e,'gamesBehind')}</td><td>${sv(e,'streak')}</td></tr>`).join('')}
       </table></div>`;
     const cols = (isNfl || isNhl) ? 4 : 3;
-    return {title:`${LEAGUES[lg].icon} ${LEAGUES[lg].name} Standings`, sub:'By division',
+    return {title:`${LEAGUES[lg].icon} ${LEAGUES[lg].name} Standings`, tab:`${LEAGUES[lg].name} Table`, sub:'By division',
       html:`<div class="stand ${(isNfl||isNhl)?'roomy':'small'}" style="grid-template-columns:repeat(${cols},minmax(0,1fr));grid-auto-rows:minmax(0,1fr)">${divs.map(tbl).join('')}</div>`};
   }
 
@@ -413,7 +451,7 @@
     }).join('');
     const n = cfg.favs.length;
     const cols = n <= 2 ? n : n <= 4 ? 2 : 3;
-    return {title:'⭐ My Teams', sub:`${n} team${n>1?'s':''}`,
+    return {title:'⭐ My Teams', tab:'⭐ Mine', sub:`${n} team${n>1?'s':''}`,
       html:`<div class="teams" style="grid-template-columns:repeat(${cols},minmax(0,1fr))">${cards}</div>`};
   }
 
@@ -432,14 +470,26 @@
     }
     return v;
   }
-  function render(){
+  let shownTitle = null;
+  function render(refresh){
     const main = document.getElementById('main');
     if (!views.length){
-      main.innerHTML = `<div class="view on"><div class="empty">${lastErr && !lastOk ? 'Can’t reach the score feed.<br>Check the PC’s internet connection.' : 'Loading scores…'}</div></div>`;
+      main.innerHTML = `<div class="view on"><div class="empty">${lastErr && !lastOk ? 'Can’t reach the score feed.<br>Check your internet connection.' : 'Loading scores…'}</div></div>`;
       return;
     }
     idx = ((idx % views.length) + views.length) % views.length;
     const v = views[idx];
+    renderTabs();
+    if (M) {
+      // phones: swap instantly; on data refresh keep the scroll position
+      const cur = main.querySelector('.view.on');
+      if (cur && refresh && shownTitle === v.title){ const y = cur.scrollTop; cur.innerHTML = v.html; cur.scrollTop = y; }
+      else { main.innerHTML = ''; const el = document.createElement('div'); el.className = 'view on'; el.innerHTML = v.html; main.appendChild(el); }
+      shownTitle = v.title;
+      document.getElementById('viewTitle').textContent = v.title;
+      return;
+    }
+    shownTitle = v.title;
     const el = document.createElement('div');
     el.className = 'view';
     el.innerHTML = v.html;
@@ -453,14 +503,33 @@
     document.getElementById('dots').innerHTML = views.map((_,i) => `<i class="${i===idx?'on':''}"></i>`).join('');
   }
   function go(step){ idx += step; render(); restartTimer(); }
-  function restartTimer(){ clearInterval(timer); timer = setInterval(() => { idx++; render(); }, cfg.rotate*1000); }
+  function restartTimer(){ clearInterval(timer); if (M) return; timer = setInterval(() => { idx++; render(); }, cfg.rotate*1000); }
+  function renderTabs(){
+    const t = document.getElementById('tabs');
+    const html = views.map((v,i) => `<button data-i="${i}" class="${i===idx?'on':''}">${esc(v.tab||v.title)}</button>`).join('');
+    if (t.dataset.html !== html){ t.dataset.html = html; t.innerHTML = html; }
+    const on = t.querySelector('.on'); if (on && M) on.scrollIntoView({inline:'center', block:'nearest'});
+  }
+  document.getElementById('tabs').addEventListener('click', e => {
+    const b = e.target.closest('button'); if (!b) return;
+    idx = +b.dataset.i; render();
+  });
+  // swipe left/right between pages on phones
+  let tx = null, ty = null;
+  document.getElementById('main').addEventListener('touchstart', e => { tx = e.touches[0].clientX; ty = e.touches[0].clientY; }, {passive:true});
+  document.getElementById('main').addEventListener('touchend', e => {
+    if (!M || tx === null) return;
+    const dx = e.changedTouches[0].clientX - tx, dy = e.changedTouches[0].clientY - ty;
+    if (Math.abs(dx) > 70 && Math.abs(dy) < 50) go(dx < 0 ? 1 : -1);
+    tx = null;
+  }, {passive:true});
 
   function afterData(){
     const curTitle = views[idx]?.title;
     views = buildViews();
     const keep = views.findIndex(v => v.title === curTitle);
     if (keep >= 0) idx = keep;
-    render();
+    render(true);
     renderTicker();
     const s = document.getElementById('status');
     s.textContent = lastOk ? `Updated ${lastOk.toLocaleTimeString([], {hour:'numeric',minute:'2-digit'})}` : '';
