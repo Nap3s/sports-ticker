@@ -73,6 +73,17 @@
   .grid.big .sit{font-size:20px}
   .grid.big .bases{width:44px;height:34px}
 
+  /* medium cards (3-6 games) */
+  .grid.mid .card{padding:18px 24px;gap:12px}
+  .grid.mid .logo{width:58px;height:58px}
+  .grid.mid .abbr{font-size:36px;width:110px}
+  .grid.mid .score{font-size:50px;min-width:70px}
+  .grid.mid .rec{font-size:19px}
+  .grid.mid .meta{font-size:20px}
+  .grid.mid .note{font-size:18px}
+  .grid.mid .sit{font-size:18px}
+  .grid.mid .bases{width:36px;height:28px}
+
   /* standings */
   .stand{display:grid;gap:14px;height:100%}
   .tbl{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:10px 14px;overflow:hidden;min-width:0}
@@ -311,7 +322,7 @@
     const big = n <= 2;
     const more = games.length > shown.length ? `<div class="empty" style="height:auto;font-size:15px;grid-column:1/-1">+${games.length-shown.length} more</div>` : '';
     return {title:`${LEAGUES[lg].icon} ${LEAGUES[lg].name} Scores`, sub,
-      html:`<div class="grid ${big?'big':''}" style="grid-template-columns:repeat(${cols},minmax(0,1fr))">${shown.map(cardHtml).join('')}${more}</div>`};
+      html:`<div class="grid ${big?'big':n<=6?'mid':''}" style="grid-template-columns:repeat(${cols},minmax(0,1fr))">${shown.map(cardHtml).join('')}${more}</div>`};
   }
 
   function standView(lg){
