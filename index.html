@@ -171,12 +171,14 @@
     mlb:{name:'MLB', path:'baseball/mlb', icon:'⚾'},
     nba:{name:'NBA', path:'basketball/nba', icon:'🏀'},
     nfl:{name:'NFL', path:'football/nfl', icon:'🏈'},
+    nhl:{name:'NHL', path:'hockey/nhl', icon:'🏒'},
+    wnba:{name:'WNBA', path:'basketball/wnba', icon:'🏀'},
   };
   const SITE = 'https://site.api.espn.com/apis/site/v2/sports/';
   const STAND = 'https://site.api.espn.com/apis/v2/sports/';
 
   // ---------- settings (stored in this browser only) ----------
-  const DEFAULTS = {rotate:15, leagues:{mlb:true,nba:true,nfl:true}, favs:[]}; // favs: "nba:BOS"
+  const DEFAULTS = {rotate:15, leagues:{mlb:true,nba:true,nfl:true,nhl:true,wnba:true}, favs:[]}; // favs: "nba:BOS"
   let cfg = load();
   function load(){
     try { const s = JSON.parse(localStorage.getItem('sportsTicker')||'null'); if (s) return {...DEFAULTS,...s, leagues:{...DEFAULTS.leagues,...(s.leagues||{})}}; } catch(e){}
@@ -315,10 +317,10 @@
   function standView(lg){
     const st = data.stand[lg];
     if (!st?.children?.length) return null;
-    // regular season only for MLB (postseason standings are stale)
+    // standings only during the regular season (postseason/offseason tables are stale)
     const sType = data.score[lg]?.season?.type;
-    if (lg === 'mlb' && sType && sType !== 2) return null;
-    if (lg === 'nba'){
+    if (sType && sType !== 2) return null;
+    if (lg === 'nba' || lg === 'wnba'){
       // conference tables (flatten divisions)
       const confs = st.children.map(c => {
         const entries = (c.standings?.entries || (c.children||[]).flatMap(d => d.standings?.entries||[]))
@@ -327,29 +329,32 @@
       });
       const tbl = c => `<div class="tbl"><h3>${esc(c.name)}</h3><table>
         <tr><th></th><th>Team</th><th>W</th><th>L</th><th>PCT</th><th>GB</th><th>L10</th><th>STRK</th></tr>
-        ${c.entries.map((e,i) => `<tr class="${isFav('nba',e.team.abbreviation)?'fav':''} ${i===6||i===10?'cut':''}">
-          <td class="sd">${i+1}</td><td class="tm">${img(logoUrl('nba',e.team.abbreviation,e.team))}${esc(e.team.abbreviation)}</td>
+        ${c.entries.map((e,i) => `<tr class="${isFav(lg,e.team.abbreviation)?'fav':''} ${lg==='nba'&&(i===6||i===10)?'cut':''}">
+          <td class="sd">${i+1}</td><td class="tm">${img(logoUrl(lg,e.team.abbreviation,e.team))}${esc(e.team.abbreviation)}</td>
           <td>${sv(e,'wins')}</td><td>${sv(e,'losses')}</td><td>${sv(e,'winPercent')}</td><td>${sv(e,'gamesBehind')}</td>
           <td>${esc(stat(e,'Last Ten Games')?.displayValue || sv(e,'lasttengames'))}</td><td>${sv(e,'streak')}</td></tr>`).join('')}
         </table></div>`;
-      return {title:'🏀 NBA Standings', sub:'Top 6 = playoffs · 7–10 = play-in',
+      return {title:`${LEAGUES[lg].icon} ${LEAGUES[lg].name} Standings`, sub: lg==='nba' ? 'Top 6 = playoffs · 7–10 = play-in' : 'By conference',
         html:`<div class="stand small" style="grid-template-columns:1fr 1fr">${confs.map(tbl).join('')}</div>`};
     }
     // NFL & MLB: divisions
     const divs = st.children.flatMap(c => (c.children||[c]).map(d => ({name:d.name, entries:(d.standings?.entries||[]).slice()})));
-    divs.forEach(d => d.entries.sort((a,b) => (+sv(b,'winPercent')||0) - (+sv(a,'winPercent')||0) || (+sv(b,'wins')) - (+sv(a,'wins'))));
+    const isNhl = lg === 'nhl';
+    divs.forEach(d => d.entries.sort(isNhl
+      ? (a,b) => (+sv(b,'points')||0) - (+sv(a,'points')||0) || (+sv(a,'gamesPlayed')||0) - (+sv(b,'gamesPlayed')||0)
+      : (a,b) => (+sv(b,'winPercent')||0) - (+sv(a,'winPercent')||0) || (+sv(b,'wins')) - (+sv(a,'wins'))));
     const isNfl = lg === 'nfl';
-    const short = n => n.replace('American League','AL').replace('National League','NL');
+    const short = n => n.replace('American League','AL').replace('National League','NL').replace(' Division','');
     const tbl = d => `<div class="tbl"><h3>${esc(short(d.name))}</h3><table>
-      <tr><th></th><th>Team</th><th>W</th><th>L</th>${isNfl?'<th>T</th>':''}<th>${isNfl?'PCT':'GB'}</th><th>STRK</th></tr>
+      <tr><th></th><th>Team</th><th>W</th><th>L</th>${isNfl?'<th>T</th>':''}${isNhl?'<th>OTL</th>':''}<th>${isNfl?'PCT':isNhl?'PTS':'GB'}</th><th>STRK</th></tr>
       ${d.entries.map((e,i) => `<tr class="${isFav(lg,e.team.abbreviation)?'fav':''}">
         <td class="sd">${i+1}</td><td class="tm">${img(logoUrl(lg,e.team.abbreviation,e.team))}${esc(e.team.abbreviation)}</td>
-        <td>${sv(e,'wins')}</td><td>${sv(e,'losses')}</td>${isNfl?`<td>${sv(e,'ties')}</td>`:''}
-        <td>${isNfl ? sv(e,'winPercent') : sv(e,'gamesBehind')}</td><td>${sv(e,'streak')}</td></tr>`).join('')}
+        <td>${sv(e,'wins')}</td><td>${sv(e,'losses')}</td>${isNfl?`<td>${sv(e,'ties')}</td>`:''}${isNhl?`<td>${sv(e,'otLosses')}</td>`:''}
+        <td>${isNfl ? sv(e,'winPercent') : isNhl ? `<b>${sv(e,'points')}</b>` : sv(e,'gamesBehind')}</td><td>${sv(e,'streak')}</td></tr>`).join('')}
       </table></div>`;
-    const cols = isNfl ? 4 : 3;
+    const cols = (isNfl || isNhl) ? 4 : 3;
     return {title:`${LEAGUES[lg].icon} ${LEAGUES[lg].name} Standings`, sub:'By division',
-      html:`<div class="stand ${isNfl?'roomy':'small'}" style="grid-template-columns:repeat(${cols},minmax(0,1fr));grid-auto-rows:minmax(0,1fr)">${divs.map(tbl).join('')}</div>`};
+      html:`<div class="stand ${(isNfl||isNhl)?'roomy':'small'}" style="grid-template-columns:repeat(${cols},minmax(0,1fr));grid-auto-rows:minmax(0,1fr)">${divs.map(tbl).join('')}</div>`};
   }
 
   function teamsView(){
